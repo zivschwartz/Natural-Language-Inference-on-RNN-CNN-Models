@@ -408,3 +408,375 @@ for epoch in range(num_epochs):
             cnn_train_acc.append(train_acc)
             print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
                        epoch+1, num_epochs, i+1, len(train_loader), val_acc))
+
+# HYPERPARAMETER TESTING
+# INCREASE HIDDEN SIZE TO 400
+
+def test_model(loader, model):
+    """
+    Help function that tests the model's performance on a dataset
+    @param: loader - data loader for the dataset to test against
+    """
+    correct = 0
+    total = 0
+    model.eval()
+    for x1, x2, lenx1, lenx2, labels in loader:
+        x1_batch, x2_batch, lenx1_batch, lenx2_batch, label_batch = x1, x2, lenx1, lenx2, labels
+        outputs = F.softmax(model(x1_batch, x2_batch, lenx1_batch, lenx2_batch), dim=1)
+        predicted = outputs.max(1, keepdim=True)[1]
+
+        total += labels.size(0)
+        correct += predicted.eq(labels.view_as(predicted)).sum().item()
+    return (100 * correct / total)
+
+model = CNN(emb_size=100, hidden_size=400, num_layers=1, num_classes=3, vocab_size=len(id2word))
+
+learning_rate = 3e-4
+num_epochs = 5 #Epoch size reduced to take into account size of data
+
+# Criterion and Optimizer
+criterion = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+# Train the model
+total_step = len(train_loader)
+
+#Hyperparameter tuning, hidden size = 400
+cnn_val_acc1 = []
+cnn_train_acc1 = []
+for epoch in range(num_epochs):
+    for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
+        model.train()
+        optimizer.zero_grad()
+        # Forward pass
+        outputs = model(x1, x2, lenx1, lenx2)
+        loss = criterion(outputs, labels)
+
+        # Backward and optimize
+        loss.backward()
+        optimizer.step()
+        # validate every 100 iterations
+        if i > 0 and i % 100 == 0:
+            # validation accuracy
+            val_acc = test_model(val_loader, model)
+            cnn_val_acc1.append(val_acc)
+            train_acc = test_model(train_loader, model)
+            cnn_train_acc1.append(train_acc)
+            print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
+                       epoch+1, num_epochs, i+1, len(train_loader), val_acc))
+
+%matplotlib inline
+plt.figure(figsize = (8,6))
+plt.plot(cnn_val_acc1, 'r', label = 'Validation Accuracy')
+plt.plot(cnn_train_acc1, 'b', label = 'Training Accuracy')
+plt.title('Training and Validation Accuracy on CNN (Larger Hidden Size)')
+plt.xlabel('Steps')
+plt.ylabel('Accuracy')
+plt.legend()
+
+# EVALUATING ON MNLI DATASET
+
+# LOAD THE DATA 
+
+sent1_mnli_val = []
+sent2_mnli_val = []
+labels_mnli_val = []
+genres_mnli_val = []
+with open('hw2_data/mnli_val.tsv') as val:
+    mnli_val = csv.reader(val, delimiter = '\t')
+    for s1, s2, label, genre in mnli_val:
+        sent1_mnli_val.append(s1.split())
+        sent2_mnli_val.append(s2.split())
+        genres_mnli_val.append(genre)
+        if label == 'contradiction':
+            labels_mnli_val.append(0)
+        if label == 'neutral':
+            labels_mnli_val.append(1)
+        if label == 'entailment':
+            labels_mnli_val.append(2)
+    genres_mnli_val.pop(0)
+    sent1_mnli_val.pop(0)
+    sent2_mnli_val.pop(0)
+
+len(sent1_mnli_val), len(sent2_mnli_val), len(labels_mnli_val), len(genres_mnli_val)
+
+mnli = pd.DataFrame({'sent1': sent1_mnli_val, 
+                     'sent2': sent2_mnli_val,
+                     'labels': labels_mnli_val, 
+                     'genres': genres_mnli_val})
+
+# SEPARATE MNLI DATA BY GENRE 
+
+mnli_fiction = mnli.loc[mnli['genres'] == 'fiction']
+mnli_government = mnli.loc[mnli['genres'] == 'government']
+mnli_slate = mnli.loc[mnli['genres'] == 'slate']
+mnli_telephone = mnli.loc[mnli['genres'] == 'telephone']
+mnli_travel = mnli.loc[mnli['genres'] == 'travel']
+
+# FIND MAX SENTENCE LENGTH WITHIN EACH GENRE
+# DECIDE ON MAX OF ALL SENTENCE LENGTHS
+
+MAX_SENT_LENGTH_fiction = max([len(sent) for sent in mnli_fiction['sent2']]) #sent1 has a few extremely long sentences
+MAX_SENT_LENGTH_government = max([len(sent) for sent in mnli_government['sent2']])
+MAX_SENT_LENGTH_slate = max([len(sent) for sent in mnli_slate['sent2']])
+MAX_SENT_LENGTH_telephone = max([len(sent) for sent in mnli_telephone['sent2']])
+MAX_SENT_LENGTH_travel = max([len(sent) for sent in mnli_travel['sent2']])
+
+MAX_SENT_LENGTH = max(MAX_SENT_LENGTH_fiction, MAX_SENT_LENGTH_government, MAX_SENT_LENGTH_slate, 
+                      MAX_SENT_LENGTH_telephone, MAX_SENT_LENGTH_travel)
+BATCH_SIZE = 32
+PAD_IDX = 0
+UNK_IDX = 1
+
+# PYTORCH DATALOADER
+
+class VocabDataset(Dataset):
+    """
+    Class that represents a train/validation/test dataset that's readable for PyTorch
+    Note that this class inherits torch.utils.data.Dataset
+    """
+
+    def __init__(self, sent1_ls, sent2_ls, labels_ls, word2id):
+        """
+        @param data_list: list of character
+        @param target_list: list of targets
+
+        """
+        self.sent1_ls = sent1_ls
+        self.sent2_ls = sent2_ls
+        self.labels_ls = labels_ls
+        assert len(sent1_ls) == len(sent2_ls)
+        assert len(sent1_ls) == len(labels_ls)
+        self.word2id = word2id
+
+    def __len__(self):
+        return len(self.sent1_ls)
+
+    def __getitem__(self, key):
+        """
+        Triggered when you call dataset[i]
+        """
+        word_idx_1 = [
+            self.word2id[word] if word in self.word2id.keys() else UNK_IDX  
+            for word in self.sent1_ls[key][:MAX_SENT_LENGTH]
+        ]
+        word_idx_2 = [
+            self.word2id[word] if word in self.word2id.keys() else UNK_IDX  
+            for word in self.sent2_ls[key][:MAX_SENT_LENGTH]
+        ]
+        label = self.labels_ls[key]
+        return [word_idx_1, word_idx_2, len(word_idx_1), len(word_idx_2), label]
+
+def vocab_collate_func(batch):
+    """
+    Customized function for DataLoader that dynamically pads the batch so that all
+    data have the same length
+    """
+    sent1_ls = []
+    sent2_ls = []
+    length_sent1_ls = []
+    length_sent2_ls = []
+    labels_ls = []
+    
+    for datum in batch:
+        labels_ls.append(datum[4])
+        length_sent1_ls.append(datum[2])
+        length_sent2_ls.append(datum[3])
+        
+    # padding
+    for datum in batch:
+        padded_vec1 = np.pad(np.array(datum[0]),
+                                pad_width=((0,MAX_SENT_LENGTH-datum[2])),
+                                mode="constant", constant_values=0)
+        sent1_ls.append(padded_vec1)
+        padded_vec2 = np.pad(np.array(datum[1]),
+                                pad_width=((0,MAX_SENT_LENGTH-datum[3])),
+                                mode="constant", constant_values=0)
+        sent2_ls.append(padded_vec2)
+    
+    sent1_ls = np.array(sent1_ls)
+    sent2_ls = np.array(sent2_ls)
+    labels_ls = np.array(labels_ls)
+    
+    return [
+        torch.from_numpy(np.array(sent1_ls)), 
+        torch.from_numpy(np.array(sent2_ls)),
+        torch.LongTensor(length_sent1_ls),
+        torch.LongTensor(length_sent2_ls),
+        torch.LongTensor(labels_ls),
+    ]
+
+# Build train and genre validation dataloaders
+
+train_dataset = VocabDataset(sent1_train, sent2_train, labels_train, word2id)
+train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+                                           batch_size=BATCH_SIZE,
+                                           collate_fn=vocab_collate_func,
+                                           shuffle=True)
+
+fiction_val_dataset = VocabDataset(mnli_fiction['sent1'].tolist(), mnli_fiction['sent2'].tolist(),
+                                   mnli_fiction['labels'].tolist(), word2id)
+fiction_val_loader = torch.utils.data.DataLoader(dataset=fiction_val_dataset,
+                                           batch_size=BATCH_SIZE,
+                                           collate_fn=vocab_collate_func,
+                                           shuffle=True)
+
+government_val_dataset = VocabDataset(mnli_government['sent1'].tolist(), mnli_government['sent2'].tolist(),
+                                      mnli_government['labels'].tolist(), word2id)
+government_val_loader = torch.utils.data.DataLoader(dataset=government_val_dataset,
+                                           batch_size=BATCH_SIZE,
+                                           collate_fn=vocab_collate_func,
+                                           shuffle=True)
+
+slate_val_dataset = VocabDataset(mnli_slate['sent1'].tolist(), mnli_slate['sent2'].tolist(), 
+                                 mnli_slate['labels'].tolist(), word2id)
+slate_val_loader = torch.utils.data.DataLoader(dataset=slate_val_dataset,
+                                           batch_size=BATCH_SIZE,
+                                           collate_fn=vocab_collate_func,
+                                           shuffle=True)
+
+telephone_val_dataset = VocabDataset(mnli_telephone['sent1'].tolist(), mnli_telephone['sent2'].tolist(), 
+                                     mnli_telephone['labels'].tolist(), word2id)
+telephone_val_loader = torch.utils.data.DataLoader(dataset=telephone_val_dataset,
+                                           batch_size=BATCH_SIZE,
+                                           collate_fn=vocab_collate_func,
+                                           shuffle=True)
+
+travel_val_dataset = VocabDataset(mnli_travel['sent1'].tolist(), mnli_travel['sent2'].tolist(), 
+                                  mnli_travel['labels'].tolist(), word2id)
+travel_val_loader = torch.utils.data.DataLoader(dataset=travel_val_dataset,
+                                           batch_size=BATCH_SIZE,
+                                           collate_fn=vocab_collate_func,
+                                           shuffle=True)
+
+def test_model(loader, model):
+    """
+    Help function that tests the model's performance on a dataset
+    @param: loader - data loader for the dataset to test against
+    """
+    correct = 0
+    total = 0
+    model.eval()
+    for x1, x2, lenx1, lenx2, labels in loader:
+        x1_batch, x2_batch, lenx1_batch, lenx2_batch, label_batch = x1, x2, lenx1, lenx2, labels
+        outputs = F.softmax(model(x1_batch, x2_batch, lenx1_batch, lenx2_batch), dim=1)
+        predicted = outputs.max(1, keepdim=True)[1]
+
+        total += labels.size(0)
+        correct += predicted.eq(labels.view_as(predicted)).sum().item()
+    return (100 * correct / total)
+
+# OPTIMAL MODEL
+
+model = CNN(emb_size=100, hidden_size=200, num_layers=1, num_classes=3, vocab_size=len(id2word))
+
+learning_rate = 3e-4
+num_epochs = 5 #Epoch size reduced to take into account size of data
+
+# Criterion and Optimizer
+criterion = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+# Train the model
+total_step = len(train_loader)
+
+#fiction
+best_fiction_val_acc = []
+for epoch in range(num_epochs):
+    for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
+        model.train()
+        optimizer.zero_grad()
+        # Forward pass
+        outputs = model(x1, x2, lenx1, lenx2)
+        loss = criterion(outputs, labels)
+
+        # Backward and optimize
+        loss.backward()
+        optimizer.step()
+        # validate every 100 iterations
+        if i > 0 and i % 100 == 0:
+            # validation accuracy
+            val_acc = test_model(fiction_val_loader, model)
+            best_fiction_val_acc.append(val_acc)
+            print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
+                       epoch+1, num_epochs, i+1, len(train_loader), val_acc))
+#government
+best_government_val_acc = []
+for epoch in range(num_epochs):
+    for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
+        model.train()
+        optimizer.zero_grad()
+        # Forward pass
+        outputs = model(x1, x2, lenx1, lenx2)
+        loss = criterion(outputs, labels)
+
+        # Backward and optimize
+        loss.backward()
+        optimizer.step()
+        # validate every 100 iterations
+        if i > 0 and i % 100 == 0:
+            # validation accuracy
+            val_acc = test_model(government_val_loader, model)
+            best_government_val_acc.append(val_acc)
+            print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
+                       epoch+1, num_epochs, i+1, len(train_loader), val_acc))
+#slate
+best_slate_val_acc = []
+for epoch in range(num_epochs):
+    for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
+        model.train()
+        optimizer.zero_grad()
+        # Forward pass
+        outputs = model(x1, x2, lenx1, lenx2)
+        loss = criterion(outputs, labels)
+
+        # Backward and optimize
+        loss.backward()
+        optimizer.step()
+        # validate every 100 iterations
+        if i > 0 and i % 100 == 0:
+            # validation accuracy
+            val_acc = test_model(slate_val_loader, model)
+            best_slate_val_acc.append(val_acc)
+            print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
+                       epoch+1, num_epochs, i+1, len(train_loader), val_acc))
+#telephone
+best_telephone_val_acc = []
+for epoch in range(num_epochs):
+    for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
+        model.train()
+        optimizer.zero_grad()
+        # Forward pass
+        outputs = model(x1, x2, lenx1, lenx2)
+        loss = criterion(outputs, labels)
+
+        # Backward and optimize
+        loss.backward()
+        optimizer.step()
+        # validate every 100 iterations
+        if i > 0 and i % 100 == 0:
+            # validation accuracy
+            val_acc = test_model(telephone_val_loader, model)
+            best_telephone_val_acc.append(val_acc)
+            print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
+                       epoch+1, num_epochs, i+1, len(train_loader), val_acc))
+#travel
+best_travel_val_acc = []
+for epoch in range(num_epochs):
+    for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
+        model.train()
+        optimizer.zero_grad()
+        # Forward pass
+        outputs = model(x1, x2, lenx1, lenx2)
+        loss = criterion(outputs, labels)
+
+        # Backward and optimize
+        loss.backward()
+        optimizer.step()
+        # validate every 100 iterations
+        if i > 0 and i % 100 == 0:
+            # validation accuracy
+            val_acc = test_model(travel_val_loader, model)
+            best_travel_val_acc.append(val_acc)
+            print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
+                       epoch+1, num_epochs, i+1, len(train_loader), val_acc))
