@@ -9,7 +9,9 @@ from torch.utils.data import Dataset
 import random
 random.seed(12796)
 
-# LOAD DATA
+####################################################################################
+################################### LOAD DATA ######################################
+####################################################################################
 
 sent1_train = []
 sent2_train = []
@@ -45,7 +47,9 @@ with open('hw2_data/snli_val.tsv') as val:
     sent1_val.pop(0)
     sent2_val.pop(0)
     
-# LOAD FASTTEXT WORD VECTORS
+####################################################################################
+########################### LOAD FASTTEXT WORD VECTORS #############################
+####################################################################################
 
 FastText = []
 with open('wiki-news-300d-1M.vec', "r") as ft:
@@ -56,7 +60,9 @@ with open('wiki-news-300d-1M.vec', "r") as ft:
         if i == 50000:
             break
 
-# EMBEDDING FUNCTION 
+####################################################################################
+############################### EMBEDDING FUNCTION  ################################
+####################################################################################
 
 def build_embedding(data):    
     word2id = {"<pad>": 0, "<unk>": 1}
@@ -84,7 +90,10 @@ BATCH_SIZE = 32
 PAD_IDX = 0
 UNK_IDX = 1
 
-# PYTORCH DATALOADER
+####################################################################################
+################################ PYTORCH DATALOADER ################################
+####################################################################################
+
 class VocabDataset(Dataset):
     """
     Class that represents a train/validation/test dataset that's readable for PyTorch
@@ -160,7 +169,9 @@ def vocab_collate_func(batch):
         torch.LongTensor(labels_ls),
     ]
 
-# BUILD TRAINING AND VALIDATION DATALOADERS
+####################################################################################
+######################## TRAIN AND VALIDATION DATALOADERS ##########################
+####################################################################################
 
 train_dataset = VocabDataset(sent1_train, sent2_train, labels_train, word2id)
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
@@ -174,7 +185,9 @@ val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
                                            collate_fn=vocab_collate_func,
                                            shuffle=True)
 
-# RNN MODEL
+####################################################################################
+#################################### RNN MODEL #####################################
+####################################################################################
 
 class RNN(nn.Module):
     def __init__(self, emb_size, hidden_size, num_layers, num_classes, vocab_size):
@@ -242,7 +255,9 @@ class RNN(nn.Module):
     
         return logits1
     
-# TEST MODEL FUNCTION
+####################################################################################
+############################### TEST MODEL FUNCTION ################################
+####################################################################################
     
 def test_model(loader, model):
     """
@@ -271,9 +286,11 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 total_step = len(train_loader)
 
-# TRAIN MODEL
-# TRAINING ACCURACY
-# VALIDATION ACCURACY
+####################################################################################
+################################## TRAIN MODEL #####################################
+############################### TRAINING ACCURACY ##################################
+############################## VALIDATION ACCURACY #################################
+####################################################################################
 
 rnn_val_acc = []
 rnn_train_acc = []
@@ -296,7 +313,9 @@ for epoch in range(num_epochs):
             print('Epoch: [{}/{}], Step: [{}/{}], Validation Acc: {}'.format(
                        epoch+1, num_epochs, i+1, len(train_loader), val_acc))
 
-# PLOT TRAINING AND VALIDATION ACCURACIES FOR BASELINE RNN MODEL 
+####################################################################################
+######### PLOT TRAINING AND VALIDATION ACCURACIES FOR BASELINE RNN MODEL ###########
+####################################################################################
 
 %matplotlib inline
 plt.figure(figsize = (8,6))
@@ -307,7 +326,9 @@ plt.xlabel('Steps')
 plt.ylabel('Accuracy')
 plt.legend()
 
-# CNN MODEL
+####################################################################################
+#################################### CNN MODEL #####################################
+####################################################################################
 
 class CNN(nn.Module):
     def __init__(self, emb_size, hidden_size, num_layers, num_classes, vocab_size):
@@ -373,7 +394,7 @@ def test_model(loader, model):
 model = CNN(emb_size=100, hidden_size=200, num_layers=1, num_classes=3, vocab_size=len(id2word))
 
 learning_rate = 3e-4
-num_epochs = 5 #Epoch size reduced to take into account size of data
+num_epochs = 5 # Epoch size reduced to take into account size of data
 
 # Criterion and Optimizer
 criterion = torch.nn.CrossEntropyLoss()
@@ -382,9 +403,11 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 # Train the model
 total_step = len(train_loader)
 
-# TRAIN MODEL
-# TRAINING ACCURACY
-# VALIDATION ACCURACY
+####################################################################################
+################################## TRAIN MODEL #####################################
+############################### TRAINING ACCURACY ##################################
+############################## VALIDATION ACCURACY #################################
+####################################################################################
 
 cnn_val_acc = []
 cnn_train_acc = []
@@ -409,8 +432,11 @@ for epoch in range(num_epochs):
             print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
                        epoch+1, num_epochs, i+1, len(train_loader), val_acc))
 
-# HYPERPARAMETER TESTING
-# INCREASE HIDDEN SIZE TO 400
+####################################################################################
+############################## HYPERPARAMETER TESTING ##############################
+####################################################################################
+
+# Increase hidden size to 400
 
 def test_model(loader, model):
     """
@@ -432,7 +458,7 @@ def test_model(loader, model):
 model = CNN(emb_size=100, hidden_size=400, num_layers=1, num_classes=3, vocab_size=len(id2word))
 
 learning_rate = 3e-4
-num_epochs = 5 #Epoch size reduced to take into account size of data
+num_epochs = 5 # Epoch size reduced to take into account size of data
 
 # Criterion and Optimizer
 criterion = torch.nn.CrossEntropyLoss()
@@ -441,7 +467,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 # Train the model
 total_step = len(train_loader)
 
-#Hyperparameter tuning, hidden size = 400
+# Hyperparameter tuning, hidden size = 400
 cnn_val_acc1 = []
 cnn_train_acc1 = []
 for epoch in range(num_epochs):
@@ -474,9 +500,9 @@ plt.xlabel('Steps')
 plt.ylabel('Accuracy')
 plt.legend()
 
-# EVALUATING ON MNLI DATASET
-
-# LOAD THE DATA 
+####################################################################################
+################################ EVALUATING MNLI DATA ##############################
+####################################################################################
 
 sent1_mnli_val = []
 sent2_mnli_val = []
@@ -505,7 +531,9 @@ mnli = pd.DataFrame({'sent1': sent1_mnli_val,
                      'labels': labels_mnli_val, 
                      'genres': genres_mnli_val})
 
-# SEPARATE MNLI DATA BY GENRE 
+####################################################################################
+################################# MNLI BY GENRE ####################################
+####################################################################################
 
 mnli_fiction = mnli.loc[mnli['genres'] == 'fiction']
 mnli_government = mnli.loc[mnli['genres'] == 'government']
@@ -513,8 +541,8 @@ mnli_slate = mnli.loc[mnli['genres'] == 'slate']
 mnli_telephone = mnli.loc[mnli['genres'] == 'telephone']
 mnli_travel = mnli.loc[mnli['genres'] == 'travel']
 
-# FIND MAX SENTENCE LENGTH WITHIN EACH GENRE
-# DECIDE ON MAX OF ALL SENTENCE LENGTHS
+# Find max sentence length within each genre 
+# Decide on max of all sentence lengths
 
 MAX_SENT_LENGTH_fiction = max([len(sent) for sent in mnli_fiction['sent2']]) #sent1 has a few extremely long sentences
 MAX_SENT_LENGTH_government = max([len(sent) for sent in mnli_government['sent2']])
@@ -528,7 +556,9 @@ BATCH_SIZE = 32
 PAD_IDX = 0
 UNK_IDX = 1
 
-# PYTORCH DATALOADER
+####################################################################################
+############################### PYTORCH DATALOADER #################################
+####################################################################################
 
 class VocabDataset(Dataset):
     """
@@ -583,7 +613,6 @@ def vocab_collate_func(batch):
         length_sent1_ls.append(datum[2])
         length_sent2_ls.append(datum[3])
         
-    # padding
     for datum in batch:
         padded_vec1 = np.pad(np.array(datum[0]),
                                 pad_width=((0,MAX_SENT_LENGTH-datum[2])),
@@ -606,7 +635,9 @@ def vocab_collate_func(batch):
         torch.LongTensor(labels_ls),
     ]
 
-# Build train and genre validation dataloaders
+####################################################################################
+########################### TRAIN AND GENRE DATALOADERS ############################
+####################################################################################
 
 train_dataset = VocabDataset(sent1_train, sent2_train, labels_train, word2id)
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
@@ -666,12 +697,14 @@ def test_model(loader, model):
         correct += predicted.eq(labels.view_as(predicted)).sum().item()
     return (100 * correct / total)
 
-# OPTIMAL MODEL
+####################################################################################
+############################# OPTIMAL MODEL FOR MNLI ###############################
+####################################################################################
 
 model = CNN(emb_size=100, hidden_size=200, num_layers=1, num_classes=3, vocab_size=len(id2word))
 
 learning_rate = 3e-4
-num_epochs = 5 #Epoch size reduced to take into account size of data
+num_epochs = 5 # Epoch size reduced to take into account size of data
 
 # Criterion and Optimizer
 criterion = torch.nn.CrossEntropyLoss()
@@ -680,7 +713,10 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 # Train the model
 total_step = len(train_loader)
 
-#fiction
+####################################################################################
+################################# FICTION GENRE ####################################
+####################################################################################
+
 best_fiction_val_acc = []
 for epoch in range(num_epochs):
     for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
@@ -700,7 +736,11 @@ for epoch in range(num_epochs):
             best_fiction_val_acc.append(val_acc)
             print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
                        epoch+1, num_epochs, i+1, len(train_loader), val_acc))
-#government
+
+####################################################################################
+################################# GOVERNMENT GENRE #################################
+####################################################################################
+
 best_government_val_acc = []
 for epoch in range(num_epochs):
     for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
@@ -720,7 +760,11 @@ for epoch in range(num_epochs):
             best_government_val_acc.append(val_acc)
             print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
                        epoch+1, num_epochs, i+1, len(train_loader), val_acc))
-#slate
+
+####################################################################################
+################################### SLATE GENRE ####################################
+####################################################################################
+
 best_slate_val_acc = []
 for epoch in range(num_epochs):
     for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
@@ -740,7 +784,11 @@ for epoch in range(num_epochs):
             best_slate_val_acc.append(val_acc)
             print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
                        epoch+1, num_epochs, i+1, len(train_loader), val_acc))
-#telephone
+
+####################################################################################
+################################# TELEPHONE GENRE ##################################
+####################################################################################
+
 best_telephone_val_acc = []
 for epoch in range(num_epochs):
     for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
@@ -760,7 +808,11 @@ for epoch in range(num_epochs):
             best_telephone_val_acc.append(val_acc)
             print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
                        epoch+1, num_epochs, i+1, len(train_loader), val_acc))
-#travel
+
+####################################################################################
+################################## TRAVEL GENRE ####################################
+####################################################################################
+
 best_travel_val_acc = []
 for epoch in range(num_epochs):
     for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
