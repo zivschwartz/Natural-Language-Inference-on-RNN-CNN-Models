@@ -306,3 +306,105 @@ plt.title('Training and Validation Accuracy on RNN')
 plt.xlabel('Steps')
 plt.ylabel('Accuracy')
 plt.legend()
+
+# CNN MODEL
+
+class CNN(nn.Module):
+    def __init__(self, emb_size, hidden_size, num_layers, num_classes, vocab_size):
+
+        super(CNN, self).__init__()
+
+        self.num_layers, self.hidden_size, self.emb_size = num_layers, hidden_size, emb_size
+        self.embedding = nn.Embedding(vocab_size, emb_size, padding_idx=PAD_IDX)
+    
+        self.conv1 = nn.Conv1d(emb_size, hidden_size, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv1d(hidden_size, hidden_size, kernel_size=3, padding=1)
+
+        self.linear = nn.Linear(2*hidden_size, num_classes)
+
+    def forward(self, x1, x2, lenx1, lenx2):
+        
+        batch_size1, seq_len1 = x1.size()
+        embed1 = self.embedding(x1)
+        
+        hidden1 = self.conv1(embed1.transpose(1,2)).transpose(1,2)
+        hidden1 = F.relu(hidden1.contiguous().view(-1, hidden1.size(-1))).view(batch_size1, seq_len1, hidden1.size(-1))
+
+        hidden1 = self.conv2(hidden1.transpose(1,2)).transpose(1,2)
+        hidden1 = F.relu(hidden1.contiguous().view(-1, hidden1.size(-1))).view(batch_size1, seq_len1, hidden1.size(-1))
+        hidden1 = F.max_pool1d(hidden1.transpose(1,2), x1.size()[-1]).transpose(1,2)
+
+        
+        batch_size2, seq_len2 = x2.size()
+        embed2 = self.embedding(x2)
+
+        hidden2 = self.conv1(embed2.transpose(1,2)).transpose(1,2)
+        hidden2 = F.relu(hidden2.contiguous().view(-1, hidden2.size(-1))).view(batch_size2, seq_len2, hidden2.size(-1))
+
+        hidden2 = self.conv2(hidden2.transpose(1,2)).transpose(1,2)
+        hidden2 = F.relu(hidden2.contiguous().view(-1, hidden2.size(-1))).view(batch_size2, seq_len2, hidden2.size(-1))
+        hidden2 = F.max_pool1d(hidden2.transpose(1,2), x2.size()[-1]).transpose(1,2)
+        
+        full_cnn_out = torch.cat([hidden1.view(-1, hidden2.size(-1)), hidden2.view(-1, hidden2.size(-1))], 1)
+        
+        logits = self.linear(full_cnn_out)
+        #ReLU 
+        logits1 = self.linear(full_cnn_out)
+        return logits1
+    
+def test_model(loader, model):
+    """
+    Help function that tests the model's performance on a dataset
+    @param: loader - data loader for the dataset to test against
+    """
+    correct = 0
+    total = 0
+    model.eval()
+    for x1, x2, lenx1, lenx2, labels in loader:
+        x1_batch, x2_batch, lenx1_batch, lenx2_batch, label_batch = x1, x2, lenx1, lenx2, labels
+        outputs = F.softmax(model(x1_batch, x2_batch, lenx1_batch, lenx2_batch), dim=1)
+        predicted = outputs.max(1, keepdim=True)[1]
+
+        total += labels.size(0)
+        correct += predicted.eq(labels.view_as(predicted)).sum().item()
+    return (100 * correct / total)
+
+
+model = CNN(emb_size=100, hidden_size=200, num_layers=1, num_classes=3, vocab_size=len(id2word))
+
+learning_rate = 3e-4
+num_epochs = 5 #Epoch size reduced to take into account size of data
+
+# Criterion and Optimizer
+criterion = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+# Train the model
+total_step = len(train_loader)
+
+# TRAIN MODEL
+# TRAINING ACCURACY
+# VALIDATION ACCURACY
+
+cnn_val_acc = []
+cnn_train_acc = []
+for epoch in range(num_epochs):
+    for i, (x1, x2, lenx1, lenx2, labels) in enumerate(train_loader):
+        model.train()
+        optimizer.zero_grad()
+        # Forward pass
+        outputs = model(x1, x2, lenx1, lenx2)
+        loss = criterion(outputs, labels)
+
+        # Backward and optimize
+        loss.backward()
+        optimizer.step()
+        # validate every 100 iterations
+        if i > 0 and i % 100 == 0:
+            # validation accuracy
+            val_acc = test_model(val_loader, model)
+            cnn_val_acc.append(val_acc)
+            train_acc = test_model(train_loader, model)
+            cnn_train_acc.append(train_acc)
+            print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
+                       epoch+1, num_epochs, i+1, len(train_loader), val_acc))
