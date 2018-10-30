@@ -501,6 +501,65 @@ plt.ylabel('Accuracy')
 plt.legend()
 
 ####################################################################################
+################################# MODEL PREDICTIONS ################################
+####################################################################################
+
+def test_model(loader, model):
+    """
+    Help function that tests the model's performance on a dataset
+    @param: loader - data loader for the dataset to test against
+    """
+    correct = 0
+    total = 0
+    model.eval()
+    for x1, x2, lenx1, lenx2, labels in loader:
+        x1_batch, x2_batch, lenx1_batch, lenx2_batch, label_batch = x1, x2, lenx1, lenx2, labels
+        outputs = F.softmax(model(x1_batch, x2_batch, lenx1_batch, lenx2_batch), dim=1)
+        predicted = outputs.max(1, keepdim=True)[1]
+
+        total += labels.size(0)
+        correct += predicted.eq(labels.view_as(predicted)).sum().item()
+    return predicted
+
+############################### Correct Predictions ################################
+
+#1st, 4th, and 6th pairing
+print(sent1_val[0], sent2_val[0], labels_val[0]) #Predicted: Contradiction
+#Premise: Three women on a stage , one wearing red shoes , black pants ,
+#and a gray shirt is sitting on a prop , another is sitting on the floor , 
+#and the third wearing a black shirt and pants is standing , as a gentleman in the back tunes an instrument .
+#Hypothesis: There are two women standing on the stage
+#Label: Contradiction
+
+print(sent1_val[3], sent2_val[3], labels_val[3]) #Predicted: Entailment
+#Premise: Man in overalls with two horses .
+#Hypothesis: a man in overalls with two horses.
+#Label: Entailment
+
+print(sent1_val[5], sent2_val[5], labels_val[5]) #Predicted: Entailment
+#Premise: Two people are in a green forest .
+#Hypothesis: The forest is not dead .
+#Label: Entailment
+
+############################## Incorrect Predictions ################################
+
+#2nd, 3rd, and 5th pairing
+print(sent1_val[1], sent2_val[1], labels_val[1]) #Predicted: Contradiction
+#Premise: Four people sit on a subway two read books , one looks at a cellphone and is wearing knee high boots .
+#Hypothesis: Multiple people are on a subway together , with each of them doing their own thing .
+#Label: Entailment
+
+print(sent1_val[2], sent2_val[2], labels_val[2]) #Predicted: Neutral
+#Premise: bicycles stationed while a group of people socialize .
+#Hypothesis: People get together near a stand of bicycles .
+#Label: Entailment
+
+print(sent1_val[4], sent2_val[4], labels_val[4]) #Predicted: Neutral
+#Premise: Man observes a wavelength given off by an electronic device .
+#Hypothesis: The man is examining what wavelength is given off by the device .
+#Label: Entailment
+
+####################################################################################
 ################################ EVALUATING MNLI DATA ##############################
 ####################################################################################
 
