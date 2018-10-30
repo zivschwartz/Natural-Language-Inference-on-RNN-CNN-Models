@@ -600,100 +600,6 @@ mnli_slate = mnli.loc[mnli['genres'] == 'slate']
 mnli_telephone = mnli.loc[mnli['genres'] == 'telephone']
 mnli_travel = mnli.loc[mnli['genres'] == 'travel']
 
-# Find max sentence length within each genre 
-# Decide on max of all sentence lengths
-
-MAX_SENT_LENGTH_fiction = max([len(sent) for sent in mnli_fiction['sent2']]) #sent1 has a few extremely long sentences
-MAX_SENT_LENGTH_government = max([len(sent) for sent in mnli_government['sent2']])
-MAX_SENT_LENGTH_slate = max([len(sent) for sent in mnli_slate['sent2']])
-MAX_SENT_LENGTH_telephone = max([len(sent) for sent in mnli_telephone['sent2']])
-MAX_SENT_LENGTH_travel = max([len(sent) for sent in mnli_travel['sent2']])
-
-MAX_SENT_LENGTH = max(MAX_SENT_LENGTH_fiction, MAX_SENT_LENGTH_government, MAX_SENT_LENGTH_slate, 
-                      MAX_SENT_LENGTH_telephone, MAX_SENT_LENGTH_travel)
-BATCH_SIZE = 32
-PAD_IDX = 0
-UNK_IDX = 1
-
-####################################################################################
-############################### PYTORCH DATALOADER #################################
-####################################################################################
-
-class VocabDataset(Dataset):
-    """
-    Class that represents a train/validation/test dataset that's readable for PyTorch
-    Note that this class inherits torch.utils.data.Dataset
-    """
-
-    def __init__(self, sent1_ls, sent2_ls, labels_ls, word2id):
-        """
-        @param data_list: list of character
-        @param target_list: list of targets
-
-        """
-        self.sent1_ls = sent1_ls
-        self.sent2_ls = sent2_ls
-        self.labels_ls = labels_ls
-        assert len(sent1_ls) == len(sent2_ls)
-        assert len(sent1_ls) == len(labels_ls)
-        self.word2id = word2id
-
-    def __len__(self):
-        return len(self.sent1_ls)
-
-    def __getitem__(self, key):
-        """
-        Triggered when you call dataset[i]
-        """
-        word_idx_1 = [
-            self.word2id[word] if word in self.word2id.keys() else UNK_IDX  
-            for word in self.sent1_ls[key][:MAX_SENT_LENGTH]
-        ]
-        word_idx_2 = [
-            self.word2id[word] if word in self.word2id.keys() else UNK_IDX  
-            for word in self.sent2_ls[key][:MAX_SENT_LENGTH]
-        ]
-        label = self.labels_ls[key]
-        return [word_idx_1, word_idx_2, len(word_idx_1), len(word_idx_2), label]
-
-def vocab_collate_func(batch):
-    """
-    Customized function for DataLoader that dynamically pads the batch so that all
-    data have the same length
-    """
-    sent1_ls = []
-    sent2_ls = []
-    length_sent1_ls = []
-    length_sent2_ls = []
-    labels_ls = []
-    
-    for datum in batch:
-        labels_ls.append(datum[4])
-        length_sent1_ls.append(datum[2])
-        length_sent2_ls.append(datum[3])
-        
-    for datum in batch:
-        padded_vec1 = np.pad(np.array(datum[0]),
-                                pad_width=((0,MAX_SENT_LENGTH-datum[2])),
-                                mode="constant", constant_values=0)
-        sent1_ls.append(padded_vec1)
-        padded_vec2 = np.pad(np.array(datum[1]),
-                                pad_width=((0,MAX_SENT_LENGTH-datum[3])),
-                                mode="constant", constant_values=0)
-        sent2_ls.append(padded_vec2)
-    
-    sent1_ls = np.array(sent1_ls)
-    sent2_ls = np.array(sent2_ls)
-    labels_ls = np.array(labels_ls)
-    
-    return [
-        torch.from_numpy(np.array(sent1_ls)), 
-        torch.from_numpy(np.array(sent2_ls)),
-        torch.LongTensor(length_sent1_ls),
-        torch.LongTensor(length_sent2_ls),
-        torch.LongTensor(labels_ls),
-    ]
-
 ####################################################################################
 ########################### TRAIN AND GENRE DATALOADERS ############################
 ####################################################################################
@@ -892,6 +798,7 @@ for epoch in range(num_epochs):
             print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
                        epoch+1, num_epochs, i+1, len(train_loader), val_acc))
 
+# PLOT ALL VALIDATION ACCURACIES BY GENRE
 %matplotlib inline
 plt.figure(figsize = (8,6))
 plt.plot(best_fiction_val_acc, label = 'Fiction Validation Accuracy')
