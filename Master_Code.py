@@ -891,3 +891,15 @@ for epoch in range(num_epochs):
             best_travel_val_acc.append(val_acc)
             print('Epoch: [{}/{}], Step: [{}/{}], Val Acc: {}'.format(
                        epoch+1, num_epochs, i+1, len(train_loader), val_acc))
+
+%matplotlib inline
+plt.figure(figsize = (8,6))
+plt.plot(best_fiction_val_acc, label = 'Fiction Validation Accuracy')
+plt.plot(best_government_val_acc, label = 'Government Validation Accuracy')
+plt.plot(best_slate_val_acc, label = 'Slate Validation Accuracy')
+plt.plot(best_telephone_val_acc, label = 'Telephone Validation Accuracy')
+plt.plot(best_travel_val_acc, label = 'Travel Validation Accuracy')
+plt.legend()
+plt.xlabel('Steps')
+plt.ylabel('Accuracy')
+plt.title('Validation Accuracy by Genre')
